@@ -8,6 +8,8 @@ extern "C" {
   #include <user_interface.h>
 }
 
+#define VERBOSE true
+
 #define DATA_LENGTH           112
 
 #define TYPE_MANAGEMENT       0x00
@@ -91,12 +93,13 @@ static void showMetadata(SnifferPacket *snifferPacket) {
   if (!found) {
     strcpy(macs[clientCount],addr);
     clientCount++;
-    /*
-    Serial.print("new mac --> ");
-    Serial.print(macs[clientCount]);
-    Serial.print(" mac count --> ");
-    Serial.println(clientCount);
-    */
+
+    if (VERBOSE) {
+      Serial.print("new mac --> ");
+      Serial.print(macs[clientCount-1]);
+      Serial.print(" mac count --> ");
+      Serial.println(clientCount);
+    }
   }
 
 }
@@ -109,7 +112,7 @@ static void ICACHE_FLASH_ATTR sniffer_callback(uint8_t *buffer, uint16_t length)
   showMetadata(snifferPacket);
 }
 
-#define CHANNEL_HOP_INTERVAL_MS   10000
+#define CHANNEL_HOP_INTERVAL_MS   30000
 static os_timer_t channelHop_timer;
 
 /**
@@ -129,8 +132,11 @@ void channelHop()
   }
 
   wifi_set_channel(new_channel);
-/*  Serial.print("Channel: ");
-  Serial.println(wifi_get_channel());  */
+
+  if (VERBOSE) {
+    Serial.print("Channel: ");
+    Serial.println(wifi_get_channel());
+  }
 }
 
 #define DISABLE 0
@@ -155,5 +161,5 @@ void setup() {
 }
 
 void loop() {
-  delay(10);
+//  delay(10);
 }
