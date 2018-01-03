@@ -1,5 +1,6 @@
 /**
-
+* This is an application for esp8266 sniffing wifi probes.
+* Author: jajupoik
 */
 
 #include <Arduino.h>
@@ -8,7 +9,10 @@ extern "C" {
   #include <user_interface.h>
 }
 
-#define VERBOSE true
+// Configurable definitions:
+#define VERBOSE true                      // true --> more verbosed output to serial.
+#define IGNORE_LOCAL_MACS true            // true --> locally administred MAC-addresses are ignored.
+#define CHANNEL_HOP_INTERVAL_MS   30000   // timer for channel hopping.
 
 #define DATA_LENGTH           112
 
@@ -58,6 +62,17 @@ static void getMAC(char *addr, uint8_t* data, uint16_t offset) {
   sprintf(addr, "%02x:%02x:%02x:%02x:%02x:%02x", data[offset+0], data[offset+1], data[offset+2], data[offset+3], data[offset+4], data[offset+5]);
 }
 
+static boolean isLocalMAC(uint8_t* data) {
+  uint8_t local = (data[10] & 0b00000010) >> 1;
+/*
+  printf("First byte: %02x -> ", data[10]);
+  Serial.print("local bit: " );
+  Serial.println(local);
+*/
+  if (local) return true;
+  return false;
+}
+
 static void printDataSpan(uint16_t start, uint16_t size, uint8_t* data) {
   for(uint16_t i = start; i < DATA_LENGTH && i < start+size; i++) {
     Serial.write(data[i]);
@@ -78,6 +93,8 @@ static void showMetadata(SnifferPacket *snifferPacket) {
   if (frameType != TYPE_MANAGEMENT ||
       frameSubType != SUBTYPE_PROBE_REQUEST)
         return;
+
+  if (isLocalMAC(snifferPacket->data) && IGNORE_LOCAL_MACS) return;
 
   char addr[] = "00:00:00:00:00:00";
   getMAC(addr, snifferPacket->data, 10);
@@ -112,7 +129,6 @@ static void ICACHE_FLASH_ATTR sniffer_callback(uint8_t *buffer, uint16_t length)
   showMetadata(snifferPacket);
 }
 
-#define CHANNEL_HOP_INTERVAL_MS   30000
 static os_timer_t channelHop_timer;
 
 /**
