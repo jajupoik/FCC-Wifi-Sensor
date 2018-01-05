@@ -11,8 +11,10 @@ extern "C" {
 
 // Configurable definitions:
 #define VERBOSE true                      // true --> more verbosed output to serial.
-#define IGNORE_LOCAL_MACS true            // true --> locally administred MAC-addresses are ignored.
+#define IGNORE_LOCAL_MACS false           // true --> locally administred MAC-addresses are ignored.
 #define CHANNEL_HOP_INTERVAL_MS   30000   // timer for channel hopping.
+#define STATIC_MODE false                 // if set true channel hopping is disabled --> static scannig mode
+#define INITIAL_WIFI_CHANNEL 1            // channel to be used in static- and starting channel for dynamic mode
 
 #define DATA_LENGTH           112
 
@@ -112,9 +114,14 @@ static void showMetadata(SnifferPacket *snifferPacket) {
     clientCount++;
 
     if (VERBOSE) {
-      Serial.print("new mac --> ");
+      RxControl rxControl = snifferPacket->rx_ctrl;
+      Serial.print("MAC:");
       Serial.print(macs[clientCount-1]);
-      Serial.print(" mac count --> ");
+      Serial.print(" RSSI:");
+      Serial.print(rxControl.rssi);
+      Serial.print(" Channel:");
+      Serial.print(rxControl.channel);
+      Serial.print(" mac count: ");
       Serial.println(clientCount);
     }
   }
@@ -163,17 +170,19 @@ void setup() {
   Serial.begin(115200);
   delay(10);
   wifi_set_opmode(STATION_MODE);
-  wifi_set_channel(1);
+  wifi_set_channel(INITIAL_WIFI_CHANNEL);
   wifi_promiscuous_enable(DISABLE);
   delay(10);
   wifi_set_promiscuous_rx_cb(sniffer_callback);
   delay(10);
   wifi_promiscuous_enable(ENABLE);
 
-  // setup the channel hoping callback timer
-  os_timer_disarm(&channelHop_timer);
-  os_timer_setfn(&channelHop_timer, (os_timer_func_t *) channelHop, NULL);
-  os_timer_arm(&channelHop_timer, CHANNEL_HOP_INTERVAL_MS, 1);
+  // setup the channel hoping callback timer if not in static mode.
+  if (!STATIC_MODE) {
+    os_timer_disarm(&channelHop_timer);
+    os_timer_setfn(&channelHop_timer, (os_timer_func_t *) channelHop, NULL);
+    os_timer_arm(&channelHop_timer, CHANNEL_HOP_INTERVAL_MS, 1);
+  }
 }
 
 void loop() {
