@@ -4,13 +4,14 @@
 */
 
 #include <Arduino.h>
+#include <SPISlave.h>
 
 extern "C" {
   #include <user_interface.h>
 }
 
 // Configurable definitions:
-#define VERBOSE true                      // true --> more verbosed output to serial.
+//#define VERBOSE true                      // true --> more verbosed output to serial.
 #define IGNORE_LOCAL_MACS false           // true --> locally administred MAC-addresses are ignored.
 #define CHANNEL_HOP_INTERVAL_MS   30000   // timer for channel hopping.
 #define STATIC_MODE false                 // if set true channel hopping is disabled --> static scannig mode
@@ -66,11 +67,6 @@ static void getMAC(char *addr, uint8_t* data, uint16_t offset) {
 
 static boolean isLocalMAC(uint8_t* data) {
   uint8_t local = (data[10] & 0b00000010) >> 1;
-/*
-  printf("First byte: %02x -> ", data[10]);
-  Serial.print("local bit: " );
-  Serial.println(local);
-*/
   if (local) return true;
   return false;
 }
@@ -100,6 +96,8 @@ static void showMetadata(SnifferPacket *snifferPacket) {
 
   char addr[] = "00:00:00:00:00:00";
   getMAC(addr, snifferPacket->data, 10);
+  RxControl rxControl = snifferPacket->rx_ctrl;
+
 
   bool found = false;
 
@@ -113,19 +111,11 @@ static void showMetadata(SnifferPacket *snifferPacket) {
     strcpy(macs[clientCount],addr);
     clientCount++;
 
-    if (VERBOSE) {
-      RxControl rxControl = snifferPacket->rx_ctrl;
-      Serial.print("MAC:");
-      Serial.print(macs[clientCount-1]);
-      Serial.print(" RSSI:");
-      Serial.print(rxControl.rssi);
-      Serial.print(" Channel:");
-      Serial.print(rxControl.channel);
-      Serial.print(" mac count: ");
-      Serial.println(clientCount);
-    }
+    char msg [50];
+    sprintf (msg, "MAC: %s RSSI: %d Ch: %d cnt: %d", addr, rxControl.rssi, rxControl.channel, clientCount);
+    SPISlave.setData(msg);
+    Serial.println(msg);
   }
-
 }
 
 /**
@@ -155,11 +145,12 @@ void channelHop()
   }
 
   wifi_set_channel(new_channel);
-
+/*
   if (VERBOSE) {
     Serial.print("Channel: ");
     Serial.println(wifi_get_channel());
   }
+  */
 }
 
 #define DISABLE 0
