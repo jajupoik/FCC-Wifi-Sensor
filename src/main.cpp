@@ -16,6 +16,7 @@ extern "C" {
 #define CHANNEL_HOP_INTERVAL_MS   30000   // timer for channel hopping.
 #define STATIC_MODE false                 // if set true channel hopping is disabled --> static scannig mode
 #define INITIAL_WIFI_CHANNEL 1            // channel to be used in static- and starting channel for dynamic mode
+#define BUFFER_SIZE 3                    // MAC entry buffer size
 
 #define DATA_LENGTH           112
 
@@ -58,7 +59,7 @@ struct SnifferPacket{
     uint16_t len;
 };
 
-char macs[100][18];
+char macs[BUFFER_SIZE][18];
 int clientCount = 0;
 
 static void getMAC(char *addr, uint8_t* data, uint16_t offset) {
@@ -77,6 +78,30 @@ static void printDataSpan(uint16_t start, uint16_t size, uint8_t* data) {
   }
 }
 
+static boolean bufferCheckMAC(char newmac[]){
+  for (int i=0;i<=clientCount;i++) {
+    if (strcmp(newmac, macs[i]) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static void bufferRollBack() {
+
+  if (clientCount >= BUFFER_SIZE) {
+    for (int i=1; i<clientCount; i++) {
+      strcpy(macs[i-1], macs[i]);
+    }
+    clientCount--;
+  }
+}
+
+static void bufferAdd(char newmac[]) {
+  bufferRollBack();
+  strcpy(macs[clientCount++],newmac);
+}
+
 static void showMetadata(SnifferPacket *snifferPacket) {
 
   unsigned int frameControl = ((unsigned int)snifferPacket->data[1] << 8) + snifferPacket->data[0];
@@ -87,7 +112,7 @@ static void showMetadata(SnifferPacket *snifferPacket) {
   uint8_t toDS         = (frameControl & 0b0000000100000000) >> 8;
   uint8_t fromDS       = (frameControl & 0b0000001000000000) >> 9;
 
-  // Only look for probe request packets
+  // Only look for probe request packetsBUFFER_SIZE
   if (frameType != TYPE_MANAGEMENT ||
       frameSubType != SUBTYPE_PROBE_REQUEST)
         return;
@@ -98,23 +123,18 @@ static void showMetadata(SnifferPacket *snifferPacket) {
   getMAC(addr, snifferPacket->data, 10);
   RxControl rxControl = snifferPacket->rx_ctrl;
 
-
-  bool found = false;
-
-  for (int i=0;i<=clientCount;i++) {
-    if (strcmp(addr, macs[i]) == 0) {
-      found = true;
-    }
-  }
-
-  if (!found) {
-    strcpy(macs[clientCount],addr);
-    clientCount++;
+  if (!bufferCheckMAC(addr)) {
+    bufferAdd(addr);
 
     char msg [50];
     sprintf (msg, "MAC: %s RSSI: %d Ch: %d cnt: %d", addr, rxControl.rssi, rxControl.channel, clientCount);
     SPISlave.setData(msg);
     Serial.println(msg);
+
+    Serial.println("BUFFER STATE:");
+    for (int i=0; i<BUFFER_SIZE; i++) {
+      Serial.println(macs[i]);
+    }
   }
 }
 
