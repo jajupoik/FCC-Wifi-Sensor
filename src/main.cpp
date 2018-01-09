@@ -16,7 +16,9 @@ extern "C" {
 #define CHANNEL_HOP_INTERVAL_MS   30000   // timer for channel hopping.
 #define STATIC_MODE false                 // if set true channel hopping is disabled --> static scannig mode
 #define INITIAL_WIFI_CHANNEL 1            // channel to be used in static- and starting channel for dynamic mode
-#define BUFFER_SIZE 3                    // MAC entry buffer size
+#define BUFFER_SIZE 50                    // MAC entry buffer size
+#define SPI_SEND_ADDRESSES false          // Send MAC-addresses with SPI when they are first seen.
+#define SPI_SEND_CLIENT_COUNT false        // Send client count in dynamic mode after 1-14 channels are scanned.
 
 #define DATA_LENGTH           112
 
@@ -88,8 +90,8 @@ static boolean bufferCheckMAC(char newmac[]){
 }
 
 static void bufferRollBack() {
-
   if (clientCount >= BUFFER_SIZE) {
+    Serial.println("Buffer rollback.");
     for (int i=1; i<clientCount; i++) {
       strcpy(macs[i-1], macs[i]);
     }
@@ -100,6 +102,19 @@ static void bufferRollBack() {
 static void bufferAdd(char newmac[]) {
   bufferRollBack();
   strcpy(macs[clientCount++],newmac);
+}
+
+static void bufferReset() {
+  Serial.println("Resetting buffer.");
+  for (int i=0; i<clientCount; i++) {
+    strcpy(macs[i], "");
+  }
+  clientCount = 0;
+/*
+  Serial.println("BUFFER STATE:");
+  for (int i=0; i<BUFFER_SIZE; i++) {
+    Serial.println(macs[i]);
+  } */
 }
 
 static void showMetadata(SnifferPacket *snifferPacket) {
@@ -127,14 +142,14 @@ static void showMetadata(SnifferPacket *snifferPacket) {
     bufferAdd(addr);
 
     char msg [50];
-    sprintf (msg, "MAC: %s RSSI: %d Ch: %d cnt: %d", addr, rxControl.rssi, rxControl.channel, clientCount);
-    SPISlave.setData(msg);
+    sprintf(msg, "MAC: %s RSSI: %d Ch: %d cnt: %d", addr, rxControl.rssi, rxControl.channel, clientCount);
     Serial.println(msg);
-
+    if (SPI_SEND_ADDRESSES) SPISlave.setData(addr);
+/*
     Serial.println("BUFFER STATE:");
     for (int i=0; i<BUFFER_SIZE; i++) {
       Serial.println(macs[i]);
-    }
+    }*/
   }
 }
 
@@ -157,20 +172,22 @@ void channelHop()
   uint8 new_channel = wifi_get_channel() + 1;
   if (new_channel > 14) {
     new_channel = 1;
+    Serial.print("Total clients:");
     Serial.println(clientCount);
-    for (int i=0; i<clientCount; i++) {
-      strcpy(macs[clientCount], "");
+
+    if(SPI_SEND_CLIENT_COUNT) {
+      char msg [5];
+      sprintf(msg, "%d",clientCount);
+      SPISlave.setData(msg);
+      bufferReset();
     }
-    clientCount = 0;
   }
 
   wifi_set_channel(new_channel);
-/*
-  if (VERBOSE) {
-    Serial.print("Channel: ");
-    Serial.println(wifi_get_channel());
-  }
-  */
+
+  Serial.print("Channel: ");
+  Serial.println(wifi_get_channel());
+
 }
 
 #define DISABLE 0
