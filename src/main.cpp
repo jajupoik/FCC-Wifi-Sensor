@@ -1,5 +1,8 @@
 /**
 * This is an application for esp8266 sniffing wifi probes.
+* Can be configured to stay in a single channel or hop through 1-14 2.4G wifi channels.
+* Maintains a buffer for seen MAC-addresses and has the possibility to filter out local MACs
+* Based on https://github.com/kalanda
 * Author: jajupoik
 */
 
@@ -11,12 +14,11 @@ extern "C" {
 }
 
 // Configurable definitions:
-//#define VERBOSE true                      // true --> more verbosed output to serial.
-#define IGNORE_LOCAL_MACS false           // true --> locally administred MAC-addresses are ignored.
+#define IGNORE_LOCAL_MACS true            // true --> locally administred MAC-addresses are ignored.
 #define CHANNEL_HOP_INTERVAL_MS   30000   // timer for channel hopping.
 #define STATIC_MODE false                 // if set true channel hopping is disabled --> static scannig mode
 #define INITIAL_WIFI_CHANNEL 1            // channel to be used in static- and starting channel for dynamic mode
-#define BUFFER_SIZE 50                    // MAC entry buffer size
+#define BUFFER_SIZE 100                    // MAC entry buffer size
 #define SPI_SEND_ADDRESSES false          // Send MAC-addresses with SPI when they are first seen.
 #define SPI_SEND_CLIENT_COUNT false        // Send client count in dynamic mode after 1-14 channels are scanned.
 
@@ -80,6 +82,8 @@ static void printDataSpan(uint16_t start, uint16_t size, uint8_t* data) {
   }
 }
 
+// MAC buffer functions. These administer the local buffer so that each addresses
+// is taken into account only once.
 static boolean bufferCheckMAC(char newmac[]){
   for (int i=0;i<=clientCount;i++) {
     if (strcmp(newmac, macs[i]) == 0) {
@@ -110,11 +114,6 @@ static void bufferReset() {
     strcpy(macs[i], "");
   }
   clientCount = 0;
-/*
-  Serial.println("BUFFER STATE:");
-  for (int i=0; i<BUFFER_SIZE; i++) {
-    Serial.println(macs[i]);
-  } */
 }
 
 static void showMetadata(SnifferPacket *snifferPacket) {
@@ -145,11 +144,6 @@ static void showMetadata(SnifferPacket *snifferPacket) {
     sprintf(msg, "MAC: %s RSSI: %d Ch: %d cnt: %d", addr, rxControl.rssi, rxControl.channel, clientCount);
     Serial.println(msg);
     if (SPI_SEND_ADDRESSES) SPISlave.setData(addr);
-/*
-    Serial.println("BUFFER STATE:");
-    for (int i=0; i<BUFFER_SIZE; i++) {
-      Serial.println(macs[i]);
-    }*/
   }
 }
 
@@ -201,7 +195,7 @@ void setup() {
   wifi_set_channel(INITIAL_WIFI_CHANNEL);
   wifi_promiscuous_enable(DISABLE);
   delay(10);
-  wifi_set_promiscuous_rx_cb(sniffer_callback);
+  wifi_set_promiscuous_rx_cb(sniffer_callback); // set callback for wifi packets
   delay(10);
   wifi_promiscuous_enable(ENABLE);
 
