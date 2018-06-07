@@ -1,7 +1,10 @@
 /**
 * This is an application for esp8266 sniffing wifi probes.
 * Can be configured to stay in a single channel or hop through 1-14 2.4G wifi channels.
-* Maintains a buffer for seen MAC-addresses and has the possibility to filter out local MACs
+* Maintains a buffer for seen MAC-addresses and has the possibility to filter out local MACs.
+* In "static mode" (STATIC_MODE true) buffer acts as a rollbuffer of defined size (BUFFER_SIZE).
+* When channel hopping is used (STATIC_MODE false) buffer is resetted after every sweep 1-14 channels.
+* SPI functions are not tested.
 * Based on https://github.com/kalanda
 * Author: jajupoik
 */
@@ -29,6 +32,7 @@ extern "C" {
 #define TYPE_DATA             0x02
 #define SUBTYPE_PROBE_REQUEST 0x04
 
+// Sniffer packet data structure
 struct RxControl {
  signed rssi:8; // signal intensity of packet
  unsigned rate:4;
@@ -56,6 +60,7 @@ struct RxControl {
  unsigned:12;
 };
 
+// Sniffer packet structure
 struct SnifferPacket{
     struct RxControl rx_ctrl;
     uint8_t data[DATA_LENGTH];
